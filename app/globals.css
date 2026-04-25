@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  --background: #07080c;
+  --foreground: #f4f4f5;
+  --surface: rgba(20, 22, 30, 0.72);
+  --surface-strong: rgba(28, 30, 40, 0.92);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --accent: #fb923c;
+  --accent-glow: rgba(251, 146, 60, 0.35);
+  --muted: rgba(244, 244, 245, 0.55);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(251, 146, 60, 0.12), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, rgba(56, 189, 248, 0.08), transparent 60%),
+    #07080c;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+.future-panel {
+  background: #1e1e1e1e;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 0 rgba(0, 0, 0, 0.4),
+    0 20px 40px -20px rgba(0, 0, 0, 0.6);
+}
+
+.future-panel-strong {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: 1rem;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+.future-button {
+  position: relative;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(251, 146, 60, 0.4);
+  background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+  color: #1c0a00;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px -6px var(--accent-glow);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.future-button:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 12px 32px -6px var(--accent-glow);
+}
+
+.future-button:active {
+  transform: translateY(1px);
+}
+
+.future-button-ghost {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--foreground);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.future-button-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.divider-soft {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+}
