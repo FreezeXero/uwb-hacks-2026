@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 const STORAGE_KEY = "streakcard-app-state-v3";
 
@@ -43,11 +44,12 @@ function getNextRank(currentRankName) {
   return rankConfig[currentIndex + 1];
 }
 
-export function AppStateProvider({ children }) {
+export function AppStateProvider({ children, auth0Id, displayName }) {
   const [xp, setXp] = useState(6800);
   const [quests, setQuests] = useState(defaultQuests);
   const [recentRankUp, setRecentRankUp] = useState(null);
   const [hydrated, setHydrated] = useState(false);
+  const syncTimerRef = useRef(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -61,7 +63,7 @@ export function AppStateProvider({ children }) {
           setQuests(parsed.quests);
         }
       } catch {
-        // Ignore malformed local storage values
+        // Ignore malformed local storage
       }
     }
     setHydrated(true);
@@ -71,6 +73,30 @@ export function AppStateProvider({ children }) {
     if (!hydrated) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ xp, quests }));
   }, [xp, quests, hydrated]);
+
+  // Sync XP and rank to Supabase (debounced 800ms)
+  useEffect(() => {
+    if (!hydrated || !auth0Id) return;
+
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+    }
+
+    syncTimerRef.current = setTimeout(async () => {
+      const currentRank = getRankFromXp(xp);
+      const { error } = await supabase
+        .from("users")
+        .update({ xp, rank: currentRank.name })
+        .eq("auth0_id", auth0Id);
+      if (error) {
+        console.error("Supabase sync error:", error.message);
+      }
+    }, 800);
+
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [xp, auth0Id, hydrated]);
 
   const value = useMemo(() => {
     const currentRank = getRankFromXp(xp);
@@ -92,6 +118,8 @@ export function AppStateProvider({ children }) {
       progressPct,
       rankConfig,
       recentRankUp,
+      auth0Id: auth0Id || null,
+      displayName: displayName || "Player",
       clearRankUp: () => setRecentRankUp(null),
       addXp: (amount) => {
         const safeAmount = Math.max(0, amount);
@@ -139,7 +167,7 @@ export function AppStateProvider({ children }) {
         setQuests((prev) => prev.filter((q) => q.id !== questId));
       },
     };
-  }, [xp, quests, recentRankUp, hydrated]);
+  }, [xp, quests, recentRankUp, hydrated, auth0Id, displayName]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
