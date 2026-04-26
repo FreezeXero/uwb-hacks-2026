@@ -1,24 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Globe, Crown } from "lucide-react";
-import { supabase } from "../lib/supabase";
 import { useAppState } from "./AppStateProvider";
 import Avatar from "./Avatar";
+import UserProfileDrawer from "./UserProfileDrawer";
 
 const rankColors = {
-  Bronze: "#cd7f32",
-  Silver: "#c0c0c0",
-  Gold: "#fbbf24",
-  Platinum: "#7dd3fc",
-  Diamond: "#60a5fa",
-  Champion: "#a78bfa",
-  Grandmaster: "#f472b6",
-  Legendary: "#fb923c",
+  Bronze: "#cd7f32", Silver: "#c0c0c0", Gold: "#fbbf24", Platinum: "#7dd3fc",
+  Diamond: "#60a5fa", Champion: "#a78bfa", Grandmaster: "#f472b6", Legendary: "#fb923c",
   Surreal: "#ffffff",
 };
 
-// Hardcoded global ladder - realistic-feeling names + ranks
 const GLOBAL_USERS = [
   { name: "Kira Voss", xp: 142000, rank: "Surreal" },
   { name: "Mateo Aguilar", xp: 118500, rank: "Surreal" },
@@ -58,150 +51,149 @@ const GLOBAL_USERS = [
 ];
 
 export default function GlobalLeaderboard() {
-  const { auth0Id, displayName, xp, rank, avatarId, avatarUrl } = useAppState();
+  const { displayName, xp, rank, avatarId, avatarUrl } = useAppState();
+  const [selectedUser, setSelectedUser] = useState(null);
 
-  // Inject "you" into the right spot based on XP
   const allEntries = [...GLOBAL_USERS, { name: displayName, xp, rank, isMe: true, avatarId, avatarUrl }];
   const sorted = allEntries.sort((a, b) => b.xp - a.xp);
-
-  // Find your position
   const myIndex = sorted.findIndex((u) => u.isMe);
   const myPosition = myIndex + 1;
-
-  // Show top 20 + your row (if not already in top 20)
   const display = myIndex < 20 ? sorted.slice(0, 20) : [...sorted.slice(0, 18), sorted[myIndex]];
 
+  function openProfile(user, position) {
+    // Map global user shape to profile drawer shape
+    setSelectedUser({
+      id: user.isMe ? "me" : `global-${position}`,
+      display_name: user.name,
+      xp: user.xp,
+      rank: user.rank,
+      avatar_id: user.isMe ? user.avatarId : "auto",
+      avatar_url: user.isMe ? user.avatarUrl : null,
+      friend_code: null,
+    });
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="future-panel-elevated p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)]">
-            <Globe size={16} className="text-[var(--accent)]" strokeWidth={2.2} />
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold text-white">Global ladder</p>
-            <p className="text-[11px] text-muted">
-              You're #{myPosition} of {GLOBAL_USERS.length + 1} this week
-            </p>
+    <>
+      <div className="space-y-3">
+        <div className="future-panel-elevated p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--accent-soft)]">
+              <Globe size={16} className="text-[var(--accent)]" strokeWidth={2.2} />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-white">Global ladder</p>
+              <p className="text-[11px] text-muted">
+                You're #{myPosition} of {GLOBAL_USERS.length + 1} this week
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-1.5">
-        {display.map((user) => {
-          const idx = sorted.findIndex((u) => u === user);
-          const position = idx + 1;
-          const isMe = user.isMe;
-          const isSurreal = user.rank === "Surreal";
-          const rankColor = rankColors[user.rank] || rankColors.Bronze;
-          const isTop3 = position <= 3;
+        <div className="space-y-1.5">
+          {display.map((user) => {
+            const idx = sorted.findIndex((u) => u === user);
+            const position = idx + 1;
+            const isMe = user.isMe;
+            const isSurreal = user.rank === "Surreal";
+            const rankColor = rankColors[user.rank] || rankColors.Bronze;
+            const isTop3 = position <= 3;
 
-          return (
-            <div
-              key={user.name + position}
-              className="relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5"
-              style={{
-                borderColor: isSurreal
-                  ? "rgba(255, 255, 255, 0.25)"
-                  : isMe
-                  ? "rgba(79, 140, 255, 0.3)"
-                  : "rgba(255, 255, 255, 0.06)",
-                background: isSurreal
-                  ? "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 60%, var(--surface) 100%)"
-                  : isMe
-                  ? "var(--accent-soft)"
-                  : "var(--surface)",
-                boxShadow: isSurreal
-                  ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 0 24px rgba(255,255,255,0.06)"
-                  : undefined,
-              }}
-            >
-              {/* Top-3 podium glow */}
-              {isTop3 && (
-                <div
-                  className="pointer-events-none absolute inset-0 opacity-40"
-                  style={{
-                    background:
-                      "radial-gradient(ellipse at left center, rgba(255,255,255,0.12), transparent 60%)",
-                  }}
-                />
-              )}
-
-              {/* Position number */}
-              <div
-                className={`relative z-10 w-7 shrink-0 text-center ${
-                  isTop3
-                    ? "text-[16px] font-black"
-                    : "text-[12px] font-bold text-muted"
-                }`}
-                style={isTop3 ? { color: rankColor } : undefined}
+            return (
+              <button
+                key={user.name + position}
+                onClick={() => openProfile(user, position)}
+                className="relative flex w-full items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition hover:border-white/15"
+                style={{
+                  borderColor: isSurreal
+                    ? "rgba(255, 255, 255, 0.25)"
+                    : isMe
+                    ? "rgba(79, 140, 255, 0.3)"
+                    : "rgba(255, 255, 255, 0.06)",
+                  background: isSurreal
+                    ? "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 60%, var(--surface) 100%)"
+                    : isMe ? "var(--accent-soft)" : "var(--surface)",
+                  boxShadow: isSurreal
+                    ? "inset 0 1px 0 rgba(255,255,255,0.10), 0 0 24px rgba(255,255,255,0.06)"
+                    : undefined,
+                }}
               >
-                {position === 1 && "🥇"}
-                {position === 2 && "🥈"}
-                {position === 3 && "🥉"}
-                {position > 3 && `#${position}`}
-              </div>
-
-              <div className="relative z-10">
-                <Avatar
-                  displayName={user.name}
-                  avatarId={isMe ? avatarId : "auto"}
-                  avatarUrl={isMe ? avatarUrl : null}
-                  rank={user.rank}
-                  size={36}
-                  surreal={isSurreal}
-                />
-              </div>
-
-              <div className="relative z-10 min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  {isSurreal ? (
-                    <p className="surreal-text truncate text-[14px] font-bold">
-                      {user.name}
-                    </p>
-                  ) : (
-                    <p className="truncate text-[14px] font-semibold text-white">
-                      {user.name}
-                    </p>
-                  )}
-                  {isMe && (
-                    <span className="shrink-0 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[8px] font-bold text-white">
-                      YOU
-                    </span>
-                  )}
-                  {isSurreal && (
-                    <Crown
-                      size={11}
-                      className="shrink-0 text-white"
-                      strokeWidth={2.5}
-                      fill="currentColor"
-                    />
-                  )}
-                </div>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-[0.12em] ${
-                    isSurreal ? "surreal-text" : ""
+                {isTop3 && (
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-40"
+                    style={{
+                      background: "radial-gradient(ellipse at left center, rgba(255,255,255,0.12), transparent 60%)",
+                    }}
+                  />
+                )}
+                <div
+                  className={`relative z-10 w-7 shrink-0 text-center ${
+                    isTop3 ? "text-[16px] font-black" : "text-[12px] font-bold text-muted"
                   }`}
-                  style={!isSurreal ? { color: rankColor } : undefined}
+                  style={isTop3 ? { color: rankColor } : undefined}
                 >
-                  {user.rank}
-                </span>
-              </div>
+                  {position === 1 && "🥇"}
+                  {position === 2 && "🥈"}
+                  {position === 3 && "🥉"}
+                  {position > 3 && `#${position}`}
+                </div>
+                <div className="relative z-10">
+                  <Avatar
+                    displayName={user.name}
+                    avatarId={isMe ? avatarId : "auto"}
+                    avatarUrl={isMe ? avatarUrl : null}
+                    rank={user.rank}
+                    size={36}
+                    surreal={isSurreal}
+                  />
+                </div>
+                <div className="relative z-10 min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    {isSurreal ? (
+                      <p className="surreal-text truncate text-[14px] font-bold">{user.name}</p>
+                    ) : (
+                      <p className="truncate text-[14px] font-semibold text-white">{user.name}</p>
+                    )}
+                    {isMe && (
+                      <span className="shrink-0 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[8px] font-bold text-white">
+                        YOU
+                      </span>
+                    )}
+                    {isSurreal && (
+                      <Crown size={11} className="shrink-0 text-white" strokeWidth={2.5} fill="currentColor" />
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-[0.12em] ${isSurreal ? "surreal-text" : ""}`}
+                    style={!isSurreal ? { color: rankColor } : undefined}
+                  >
+                    {user.rank}
+                  </span>
+                </div>
+                <div className="relative z-10 text-right">
+                  <p className="text-[14px] font-bold tabular-nums text-white">
+                    {(user.xp || 0).toLocaleString()}
+                  </p>
+                  <p className="text-[9px] uppercase tracking-wider text-muted">XP</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-              <div className="relative z-10 text-right">
-                <p className="text-[14px] font-bold tabular-nums text-white">
-                  {(user.xp || 0).toLocaleString()}
-                </p>
-                <p className="text-[9px] uppercase tracking-wider text-muted">XP</p>
-              </div>
-            </div>
-          );
-        })}
+        <p className="pb-2 pt-1 text-center text-[11px] text-muted/70">
+          Top 3 reach Surreal rank — only awarded to the global elite.
+        </p>
       </div>
 
-      <p className="pb-2 pt-1 text-center text-[11px] text-muted/70">
-        Top 3 reach Surreal rank — only awarded to the global elite.
-      </p>
-    </div>
+      {selectedUser && (
+        <UserProfileDrawer
+          user={selectedUser}
+          isMe={selectedUser.id === "me"}
+          isFriend={false}
+          onClose={() => setSelectedUser(null)}
+        />
+      )}
+    </>
   );
 }
