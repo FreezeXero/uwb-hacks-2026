@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppStateProvider } from "../components/AppStateProvider";
 import LoginGate from "../components/LoginGate";
+import PhoneStatusBar from "../components/PhoneStatusBar";
 import { auth0 } from "../lib/auth0";
 import { upsertUser } from "../lib/syncUser";
 import "./globals.css";
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StreakCard",
-  description: "AI-verified accountability. Real productivity, gamified.",
+  title: "Ascend",
+  description: "Discipline is a team sport.",
 };
 
 export default async function RootLayout({
@@ -36,24 +37,29 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        {session ? (
-          <AppStateProvider
-            auth0Id={session.user.sub}
-            displayName={
-              supabaseUser?.display_name ||
-              session.user.name ||
-              session.user.email ||
-              "Player"
-            }
-          >
-            {children}
-          </AppStateProvider>
-        ) : (
-          <LoginGate />
-        )}
+      <body>
+        <div className="phone-frame">
+          <PhoneStatusBar />
+          <div className="phone-screen">
+            {session ? (
+              <AppStateProvider
+                auth0Id={session.user.sub}
+                displayName={
+                  supabaseUser?.display_name ||
+                  session.user.name ||
+                  session.user.email ||
+                  "Player"
+                }
+              >
+                {children}
+              </AppStateProvider>
+            ) : (
+              <LoginGate />
+            )}
+          </div>
+        </div>
       </body>
     </html>
   );

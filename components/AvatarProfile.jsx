@@ -1,231 +1,285 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Pencil,
+  Copy,
+  Check,
+  ChevronRight,
+  LogOut,
+  Bell,
+  Shield,
+  HelpCircle,
+  X,
+} from "lucide-react";
 import { useAppState } from "./AppStateProvider";
+import { supabase } from "../lib/supabase";
 
-const profile = {
-  name: "Rafay Farah",
-  username: "@rafay",
-  userId: "48217",
-  level: 12,
-  streak: 19,
-  playerClass: "Neon Pilot",
-  badges: ["Quantum Discipline", "Pulse Focus", "Iron Loop"],
+const rankColors = {
+  Bronze: "#cd7f32",
+  Silver: "#c0c0c0",
+  Gold: "#fbbf24",
+  Platinum: "#7dd3fc",
+  Diamond: "#60a5fa",
+  Champion: "#a78bfa",
+  Grandmaster: "#f472b6",
+  Legendary: "#fb923c",
 };
 
-const defaultAvatarOptions = ["🧑‍🚀", "🛡️", "🤖", "🧠", "⚔️", "🎯"];
-
-function getRankClasses(rank) {
-  if (rank === "Bronze") {
-    return "text-amber-500 drop-shadow-[0_0_8px_rgba(180,83,9,0.85)]";
-  }
-
-  if (rank === "Champion") {
-    return "text-violet-700 drop-shadow-[0_0_8px_rgba(167,139,250,0.55)]";
-  }
-
-  if (rank === "Grand Champion") {
-    return "text-red-600 drop-shadow-[0_0_9px_rgba(248,113,113,0.6)]";
-  }
-
-  if (rank === "Legendary") {
-    return "text-zinc-800 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]";
-  }
-
-  if (rank === "Diamond") {
-    return "text-sky-600";
-  }
-
-  if (rank === "Silver") {
-    return "text-slate-600";
-  }
-
-  return "text-muted";
-}
-
 export default function AvatarProfile() {
-  const { xp, rank } = useAppState();
-  const fileInputRef = useRef(null);
-  const avatarMenuRef = useRef(null);
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState(defaultAvatarOptions[0]);
+  const router = useRouter();
+  const { auth0Id, displayName, xp, rank, quests } = useAppState();
+  const [friendCode, setFriendCode] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
-    return () => {
-      if (photoUrl) {
-        URL.revokeObjectURL(photoUrl);
-      }
-    };
-  }, [photoUrl]);
+    if (!auth0Id) return;
+    (async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("friend_code")
+        .eq("auth0_id", auth0Id)
+        .single();
+      if (data) setFriendCode(data.friend_code);
+    })();
+  }, [auth0Id]);
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (!avatarMenuOpen) {
-        return;
-      }
+  const completedQuests = quests.filter((q) => q.done).length;
+  const handle = displayName ? displayName.toLowerCase().replace(/\s+/g, "") : "player";
+  const initials = displayName
+    ? displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "P";
+  const rankColor = rankColors[rank] || rankColors.Bronze;
 
-      if (avatarMenuRef.current && !avatarMenuRef.current.contains(event.target)) {
-        setAvatarMenuOpen(false);
-      }
-    }
+  function copyFriendCode() {
+    if (!friendCode) return;
+    navigator.clipboard.writeText(friendCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [avatarMenuOpen]);
+  function openEdit() {
+    setNameInput(displayName || "");
+    setSaveError(null);
+    setEditing(true);
+  }
 
-  function onPhotoUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) {
+  async function saveName() {
+    const newName = nameInput.trim();
+    if (!newName || saving) return;
+    if (newName === displayName) {
+      setEditing(false);
       return;
     }
+    setSaving(true);
+    setSaveError(null);
 
-    if (photoUrl) {
-      URL.revokeObjectURL(photoUrl);
+    const { error } = await supabase
+      .from("users")
+      .update({ display_name: newName })
+      .eq("auth0_id", auth0Id);
+
+    setSaving(false);
+
+    if (error) {
+      setSaveError("Couldn't save, try again");
+    } else {
+      setEditing(false);
+      router.refresh();
     }
-
-    setPhotoUrl(URL.createObjectURL(file));
-    setAvatarMenuOpen(false);
-  }
-
-  function chooseDefaultAvatar(avatar) {
-    setSelectedAvatar(avatar);
-    if (photoUrl) {
-      URL.revokeObjectURL(photoUrl);
-      setPhotoUrl("");
-    }
-    setAvatarMenuOpen(false);
-  }
-
-  function openUploader() {
-    fileInputRef.current?.click();
   }
 
   return (
-    <section className="space-y-4">
-      <div className="future-panel rounded-2xl p-4">
-        <div className="mb-3 flex justify-center">
-          <span className="text-xs font-semibold uppercase tracking-[0.32em] text-muted">
-            Hyperdrive Elite
-          </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div ref={avatarMenuRef} className="group relative h-24 w-24 overflow-visible">
+    <>
+      <div className="space-y-5">
+        {/* Avatar + identity */}
+        <div className="flex flex-col items-center pt-2">
+          <div className="relative">
+            <div
+              className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-white"
+              style={{
+                background: `linear-gradient(135deg, ${rankColor} 0%, ${rankColor}99 100%)`,
+                boxShadow: `0 0 28px ${rankColor}50`,
+              }}
+            >
+              {initials}
+            </div>
             <button
               type="button"
-              onClick={() => setAvatarMenuOpen((open) => !open)}
-              className="absolute bottom-0 right-0 z-10 hidden h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white text-xs text-muted shadow-lg group-hover:flex group-focus-within:flex"
-              aria-label="Edit profile picture"
+              onClick={openEdit}
+              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--background)] bg-white text-zinc-900 transition hover:bg-zinc-200"
+              aria-label="Edit profile"
             >
-              ✎
+              <Pencil size={12} strokeWidth={2.5} />
             </button>
-
-            <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-zinc-500/70 bg-zinc-800 shadow-[0_0_18px_rgba(0,0,0,0.45)]">
-              {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photoUrl}
-                  alt="Profile upload preview"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-4xl">
-                  {selectedAvatar}
-                </div>
-              )}
-            </div>
-
-            {avatarMenuOpen ? (
-              <div className="absolute left-0 top-[6.4rem] z-20 w-56 rounded-xl border border-zinc-200 bg-white p-3 shadow-[0_18px_28px_rgba(0,0,0,0.22)]">
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                    Choose avatar
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setAvatarMenuOpen(false)}
-                    className="rounded-md border border-zinc-200 px-1.5 py-0.5 text-xs text-muted hover:bg-white/[0.03]"
-                    aria-label="Close avatar menu"
-                  >
-                    X
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {defaultAvatarOptions.map((avatar) => (
-                    <button
-                      key={avatar}
-                      type="button"
-                      onClick={() => chooseDefaultAvatar(avatar)}
-                      className="rounded-lg border border-zinc-200 bg-white/[0.03] py-1 text-xl"
-                    >
-                      {avatar}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  onClick={openUploader}
-                  className="future-button mt-3 w-full px-2 py-2 text-xs"
-                >
-                  Upload your own
-                </button>
-              </div>
-            ) : null}
           </div>
-          <div>
-            <p className="text-lg font-bold text-white">{profile.name}</p>
-            <p className="text-sm text-muted">{profile.username}</p>
-            <p className="mt-1 text-xs text-muted">ID: {profile.userId}</p>
-            <p className="mt-1 text-xs text-muted">{profile.playerClass}</p>
-            <p className={`mt-1 text-sm font-semibold ${getRankClasses(rank)}`}>
-              {rank}
-            </p>
-            <p className="text-xs text-muted">{xp} XP total</p>
-          </div>
+          <h2 className="mt-3 text-xl font-bold tracking-tight text-white">
+            {displayName}
+          </h2>
+          <p className="text-[13px] text-muted">@{handle}</p>
         </div>
+
+        {/* Friend code card */}
+        <button
+          type="button"
+          onClick={copyFriendCode}
+          className="future-panel flex w-full items-center justify-between p-4 transition hover:border-white/15"
+        >
+          <div className="text-left">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Your Friend Code
+            </p>
+            <p className="mt-0.5 font-mono text-lg font-bold tracking-[0.18em] text-white">
+              {friendCode || "------"}
+            </p>
+          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06]">
+            {copied ? (
+              <Check size={16} className="text-emerald-400" strokeWidth={2.5} />
+            ) : (
+              <Copy size={15} className="text-zinc-400" strokeWidth={2} />
+            )}
+          </div>
+        </button>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard label="Rank" value={rank} valueColor={rankColor} />
+          <StatCard label="Total XP" value={xp.toLocaleString()} />
+          <StatCard label="Completed" value={completedQuests.toString()} />
+        </div>
+
+        {/* Settings list */}
+        <div className="future-panel divide-y divide-white/[0.04] overflow-hidden">
+          <SettingsRow icon={Pencil} label="Edit profile" onClick={openEdit} />
+          <SettingsRow icon={Bell} label="Notifications" />
+          <SettingsRow icon={Shield} label="Privacy" />
+          <SettingsRow icon={HelpCircle} label="Help & support" />
+        </div>
+
+        {/* Sign out */}
+        <a
+          href="/auth/logout"
+          className="future-panel flex w-full items-center justify-center gap-2 p-4 text-[14px] font-semibold text-red-400 transition hover:border-red-500/20 hover:bg-red-500/[0.04]"
+        >
+          <LogOut size={16} strokeWidth={2.2} />
+          Sign out
+        </a>
+
+        <p className="pb-2 text-center text-[11px] text-muted/60">
+          Ascend v0.1 · Built at UWB Hacks 2026
+        </p>
+      </div>
+
+      {/* Edit name modal */}
+      {editing && (
+        <EditNameModal
+          value={nameInput}
+          onChange={setNameInput}
+          onSave={saveName}
+          onClose={() => setEditing(false)}
+          saving={saving}
+          error={saveError}
+        />
+      )}
+    </>
+  );
+}
+
+function StatCard({ label, value, valueColor }) {
+  return (
+    <div className="future-panel p-3">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
+        {label}
+      </p>
+      <p
+        className="mt-1 text-[18px] font-bold tracking-tight text-white"
+        style={valueColor ? { color: valueColor } : undefined}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SettingsRow({ icon: Icon, label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.02]"
+    >
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.04]">
+        <Icon size={15} className="text-zinc-300" strokeWidth={2} />
+      </div>
+      <span className="flex-1 text-[14px] font-medium text-white">{label}</span>
+      <ChevronRight size={16} className="text-zinc-500" strokeWidth={2} />
+    </button>
+  );
+}
+
+function EditNameModal({ value, onChange, onSave, onClose, saving, error }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="future-panel-elevated w-full max-w-sm p-5"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-[17px] font-bold text-white">Edit display name</h3>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-zinc-400 hover:bg-white/[0.05] hover:text-white"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <p className="mt-1 text-[12px] text-muted">
+          This is how friends see you on the leaderboard.
+        </p>
 
         <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={onPhotoUpload}
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSave();
+          }}
+          maxLength={40}
+          placeholder="Your name"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[14px] text-white placeholder:text-zinc-500 focus:border-[var(--accent)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/30"
         />
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="future-panel rounded-2xl p-3">
-          <p className="text-xs uppercase tracking-wider text-muted">Level</p>
-          <p className="mt-1 text-2xl font-bold text-white">{profile.level}</p>
-        </div>
-        <div className="future-panel rounded-2xl p-3">
-          <p className="text-xs uppercase tracking-wider text-muted">Streak</p>
-          <p className="mt-1 text-2xl font-bold text-white">{profile.streak}d</p>
-        </div>
-      </div>
+        {error && <p className="mt-2 text-[12px] text-red-400">{error}</p>}
 
-      <div className="future-panel rounded-2xl p-4">
-        <p className="text-sm font-semibold text-white">Rank Progress</p>
-        <p className="mt-2 text-xs text-muted">
-          Start at Bronze and rank up automatically by completing quests for XP.
-        </p>
-        <p className="mt-2 text-sm text-muted">Current: {rank}</p>
-      </div>
-
-      <div className="future-panel rounded-2xl p-4">
-        <p className="text-sm font-semibold text-white">🏆 Achievements</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {profile.badges.map((badge) => (
-            <span
-              key={badge}
-              className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs font-medium text-muted"
-            >
-              {badge}
-            </span>
-          ))}
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="future-button-ghost flex-1 py-2.5 text-[14px]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !value.trim()}
+            className="future-button flex-1 py-2.5 text-[14px] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
