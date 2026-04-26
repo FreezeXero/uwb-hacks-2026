@@ -1,6 +1,7 @@
 "use client";
 
 import MobileNav from "./MobileNav";
+import RankSymbol from "./RankSymbol";
 import { useAppState } from "./AppStateProvider";
 
 export default function AppShell({
@@ -28,7 +29,7 @@ export default function AppShell({
 
 function StandardHeader({ title, subtitle }) {
   return (
-    <header className="px-5 pb-3 pt-12 sm:pt-11">
+    <header className="px-5 pb-3 pt-12 sm:pt-14">
       <h1 className="text-[22px] font-bold tracking-tight text-white">{title}</h1>
       {subtitle ? <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p> : null}
     </header>
@@ -37,26 +38,41 @@ function StandardHeader({ title, subtitle }) {
 
 function RankHeader() {
   const { xp, rank, rankColor, nextRankName, xpToNext, progressPct } = useAppState();
+  // Long rank names get smaller font
+  const isLongRank = rank.length > 8;
 
   return (
-    <header className="px-5 pb-4 pt-12 sm:pt-11">
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
-            Current Rank
-          </p>
-          <p
-            className="mt-1 text-[26px] font-bold tracking-tight"
-            style={{ color: rankColor }}
+    <header className="px-5 pb-4 pt-12 sm:pt-14">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              background: `${rankColor}22`,
+              border: `1px solid ${rankColor}44`,
+            }}
           >
-            {rank}
-          </p>
+            <RankSymbol rank={rank} size={24} color={rankColor} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">
+              Current Rank
+            </p>
+            <p
+              className={`mt-0.5 truncate font-bold tracking-tight ${
+                isLongRank ? "text-[20px]" : "text-[24px]"
+              }`}
+              style={{ color: rankColor }}
+            >
+              {rank}
+            </p>
+          </div>
         </div>
-        <div className="text-right">
-          <p className="text-[24px] font-bold tabular-nums text-white">
+        <div className="text-right shrink-0">
+          <p className="text-[22px] font-bold tabular-nums leading-none text-white">
             {xp.toLocaleString()}
           </p>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             Total XP
           </p>
         </div>
@@ -65,10 +81,7 @@ function RankHeader() {
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{
-            width: `${progressPct}%`,
-            background: rankColor,
-          }}
+          style={{ width: `${progressPct}%`, background: rankColor }}
         />
       </div>
 

@@ -3,6 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppStateProvider } from "../components/AppStateProvider";
 import LoginGate from "../components/LoginGate";
 import PhoneStatusBar from "../components/PhoneStatusBar";
+import AdminPanel from "../components/AdminPanel";
+import BrandPanel from "../components/BrandPanel";
+import RankUpHost from "../components/RankUpHost";
+import NotificationHost from "../components/NotificationHost";
 import { auth0 } from "../lib/auth0";
 import { upsertUser } from "../lib/syncUser";
 import "./globals.css";
@@ -40,26 +44,38 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body>
-        <div className="phone-frame">
-          <PhoneStatusBar />
-          <div className="phone-screen">
-            {session ? (
-              <AppStateProvider
-                auth0Id={session.user.sub}
-                displayName={
-                  supabaseUser?.display_name ||
-                  session.user.name ||
-                  session.user.email ||
-                  "Player"
-                }
-              >
+        {session ? (
+          <AppStateProvider
+            auth0Id={session.user.sub}
+            displayName={
+              supabaseUser?.display_name ||
+              session.user.name ||
+              session.user.email ||
+              "Player"
+            }
+          >
+            <AdminPanel />
+            <div className="phone-frame">
+              <PhoneStatusBar />
+              <div className="phone-screen">
                 {children}
-              </AppStateProvider>
-            ) : (
-              <LoginGate />
-            )}
-          </div>
-        </div>
+                <NotificationHost />
+              </div>
+            </div>
+            <BrandPanel />
+            <RankUpHost />
+          </AppStateProvider>
+        ) : (
+          <>
+            <div className="phone-frame">
+              <PhoneStatusBar />
+              <div className="phone-screen">
+                <LoginGate />
+              </div>
+            </div>
+            <BrandPanel />
+          </>
+        )}
       </body>
     </html>
   );

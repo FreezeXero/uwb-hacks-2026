@@ -1,240 +1,230 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Send, Sparkles, Plus } from "lucide-react";
 import { useAppState } from "./AppStateProvider";
 
 const QUICK_PROMPTS = [
-  "Plan my day",
-  "Suggest 3 fitness quests",
-  "Help me study consistently",
-  "I'm procrastinating",
+  { label: "I want to study more", prompt: "I want to study more consistently for finals - give me 3 daily quests" },
+  { label: "Build a side project", prompt: "I'm trying to build a side project. Suggest 3 weekly quests to keep momentum" },
+  { label: "Get fit by summer", prompt: "I want to get in shape by summer. Give me 3 fitness quests, mix daily and weekly" },
+  { label: "Reset my sleep", prompt: "My sleep is wrecked. Give me 2 daily quests to fix it" },
+  { label: "Read more books", prompt: "I want to read 12 books this year. Suggest a daily and weekly quest" },
+  { label: "Lock in for hack week", prompt: "It's UWB hack week. Give me 3 daily quests to ship hard" },
 ];
 
+const SAMPLE_GREETING = `Hey, I'm your Ascend coach. Tell me what you're working toward and I'll suggest quests that fit. Or pick a starter below.`;
+
 export default function ChatbotInterface() {
-  const { addQuest, xp, rank, displayName } = useAppState();
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content:
-        "Hey, I'm your AI coach. Tell me what you're trying to do and I'll build you the right quests.",
-      suggestions: null,
-    },
+  const { addQuest, displayName } = useAppState();
+  const [messages, setMessages] = useState(() => [
+    { role: "assistant", text: SAMPLE_GREETING },
   ]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [addedQuestIds, setAddedQuestIds] = useState(new Set());
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
   const scrollRef = useRef(null);
 
+  const trimmed = useMemo(() => input.trim(), [input]);
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, loading]);
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
 
-  async function sendMessage(text) {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
+  async function send(textArg) {
+    const text = (textArg || trimmed).trim();
+    if (!text || sending) return;
 
-    const userMessage = { role: "user", content: trimmed, suggestions: null };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
+    setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
-    setLoading(true);
+    setSending(true);
+    setError(null);
 
     try {
-      const apiMessages = newMessages
-        .filter((m) => m.role === "user" || m.role === "assistant")
-        .map((m) => ({ role: m.role, content: m.content }));
-
       const res = await fetch("/api/chatbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: apiMessages,
-          userContext: { xp, rank, displayName },
-        }),
+        body: JSON.stringify({ message: text, displayName }),
       });
 
       const data = await res.json();
+      const reply = data.reply || "Couldn't generate a response.";
 
-      if (data.error) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: "Coach is offline right now, try again in a sec.",
-            suggestions: null,
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.message || "Got it.",
-            suggestions: data.suggestions || null,
-          },
-        ]);
-      }
-    } catch (error) {
-      console.error(error);
+      const quests = extractQuests(reply);
+      const cleanedReply = stripJsonBlocks(reply);
+
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "Network error, try again.",
-          suggestions: null,
-        },
+        { role: "assistant", text: cleanedReply, suggestions: quests },
       ]);
+    } catch (e) {
+      setError(`Network error: ${e?.message || "couldn't reach the API"}`);
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   }
 
-  function handleAddSuggestion(suggestion, suggestionKey) {
+  function adoptQuest(suggestion, msgIndex, suggestionIndex) {
     addQuest({
       title: suggestion.title,
-      cadence: suggestion.cadence,
-      xp: suggestion.xp,
-      missionType: suggestion.missionType,
+      cadence: suggestion.cadence === "weekly" ? "weekly" : "daily",
+      missionType: suggestion.missionType || "focus",
     });
-    setAddedQuestIds((prev) => new Set(prev).add(suggestionKey));
+    setMessages((prev) =>
+      prev.map((m, i) => {
+        if (i !== msgIndex || !m.suggestions) return m;
+        return {
+          ...m,
+          suggestions: m.suggestions.map((s, si) =>
+            si !== suggestionIndex ? s : { ...s, adopted: true },
+          ),
+        };
+      }),
+    );
   }
 
-  const showChips = messages.length <= 1 && !loading;
-
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* Messages */}
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 space-y-3 overflow-y-auto pb-2"
-      >
-        {messages.map((msg, idx) => (
-          <div
-            key={idx}
-            className={msg.role === "user" ? "flex justify-end" : "flex justify-start"}
-          >
-            <div className={msg.role === "user" ? "max-w-[85%]" : "max-w-[92%] w-full"}>
-              {msg.role === "assistant" && (
-                <div className="mb-1 flex items-center gap-1.5 px-1">
-                  <Sparkles size={11} className="text-[var(--accent)]" />
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                    Coach
-                  </p>
-                </div>
-              )}
-              <div
-                className={
-                  msg.role === "user"
-                    ? "rounded-2xl rounded-tr-sm bg-[var(--accent)] px-3.5 py-2.5 text-[14px] text-[#1c0700]"
-                    : "future-panel rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-[14px] leading-relaxed text-white"
-                }
-              >
-                {msg.content}
-              </div>
-
-              {msg.suggestions && msg.suggestions.length > 0 && (
-                <div className="mt-2 space-y-2">
-                  {msg.suggestions.map((s, sIdx) => {
-                    const key = `${idx}-${sIdx}`;
-                    const added = addedQuestIds.has(key);
-                    return (
-                      <div key={key} className="future-panel rounded-xl p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-semibold text-white">
-                              {s.title}
-                            </p>
-                            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                                {s.cadence}
-                              </span>
-                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                                {s.missionType}
-                              </span>
-                              <span className="font-semibold text-[var(--accent)]">
-                                +{s.xp} XP
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAddSuggestion(s, key)}
-                            disabled={added}
-                            className={
-                              added
-                                ? "future-button-ghost shrink-0 px-3 py-1.5 text-[11px]"
-                                : "future-button shrink-0 px-3 py-1.5 text-[11px]"
-                            }
-                          >
-                            {added ? "Added" : "Add"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+    <div className="flex h-full flex-col">
+      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto pb-3">
+        {messages.map((msg, i) => (
+          <MessageBubble
+            key={i}
+            msg={msg}
+            onAdopt={(suggestion, sIdx) => adoptQuest(suggestion, i, sIdx)}
+          />
         ))}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="future-panel rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400" />
-              </div>
+        {messages.length === 1 && (
+          <div className="space-y-2 pt-2">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Quick starters
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_PROMPTS.map((q) => (
+                <button
+                  key={q.label}
+                  type="button"
+                  onClick={() => send(q.prompt)}
+                  className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-zinc-300 transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                >
+                  {q.label}
+                </button>
+              ))}
             </div>
+          </div>
+        )}
+
+        {sending && (
+          <div className="flex items-center gap-2 px-2 py-1">
+            <div className="flex gap-1">
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]" style={{ animationDelay: "0ms" }} />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]" style={{ animationDelay: "120ms" }} />
+              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[var(--accent)]" style={{ animationDelay: "240ms" }} />
+            </div>
+            <p className="text-[12px] text-muted">Coach is thinking...</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3 text-[12px] text-red-300">
+            {error}
           </div>
         )}
       </div>
 
-      {/* Chips, only on first load */}
-      {showChips && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {QUICK_PROMPTS.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => sendMessage(prompt)}
-              className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:border-[var(--accent)]/30 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-            >
-              {prompt}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Input pinned to bottom */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 border-t border-[var(--border)] pt-3">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage(input);
-            }
-          }}
-          placeholder="Message your coach..."
-          disabled={loading}
-          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[14px] text-white placeholder:text-zinc-500 focus:border-[var(--accent)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/30 disabled:opacity-50"
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder="Ask your coach..."
+          className="w-full rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] text-white placeholder:text-zinc-500 focus:border-[var(--accent)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/30"
         />
         <button
-          type="button"
-          onClick={() => sendMessage(input)}
-          disabled={loading || !input.trim()}
-          className="future-button flex shrink-0 items-center justify-center px-3.5 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Send message"
+          onClick={() => send()}
+          disabled={sending || !trimmed}
+          className="future-button flex h-10 w-10 shrink-0 items-center justify-center disabled:opacity-50"
+          aria-label="Send"
         >
-          <Send size={16} strokeWidth={2.4} />
+          <Send size={14} strokeWidth={2.4} />
         </button>
       </div>
     </div>
   );
+}
+
+function MessageBubble({ msg, onAdopt }) {
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-[var(--accent)] px-3.5 py-2 text-[13px] text-white">
+          {msg.text}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500">
+        <Sparkles size={13} className="text-white" strokeWidth={2.4} />
+      </div>
+      <div className="flex max-w-[85%] flex-col gap-2">
+        <div className="rounded-2xl rounded-tl-md border border-white/[0.06] bg-[var(--surface)] px-3.5 py-2 text-[13px] leading-relaxed text-zinc-200 whitespace-pre-wrap">
+          {msg.text}
+        </div>
+        {msg.suggestions && msg.suggestions.length > 0 && (
+          <div className="space-y-1.5">
+            {msg.suggestions.map((s, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => !s.adopted && onAdopt(s, idx)}
+                disabled={s.adopted}
+                className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition ${
+                  s.adopted
+                    ? "border-emerald-500/30 bg-emerald-500/[0.06]"
+                    : "border-white/[0.08] bg-white/[0.03] hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-semibold text-white">{s.title}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted">
+                    {s.cadence || "daily"} · {s.missionType || "focus"}
+                  </p>
+                </div>
+                {s.adopted ? (
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    Added
+                  </span>
+                ) : (
+                  <div className="flex shrink-0 items-center gap-1 rounded-full bg-[var(--accent)] px-2 py-0.5 text-[10px] font-bold text-white">
+                    <Plus size={9} strokeWidth={3} /> Add
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function extractQuests(reply) {
+  const match = reply.match(/```json\s*([\s\S]*?)```/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed.quests)) return parsed.quests;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function stripJsonBlocks(reply) {
+  return reply.replace(/```json\s*[\s\S]*?```/g, "").trim();
 }

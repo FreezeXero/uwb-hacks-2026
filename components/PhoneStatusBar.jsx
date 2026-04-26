@@ -2,9 +2,9 @@
 
 export default function PhoneStatusBar() {
   return (
-    <div className="pointer-events-none absolute left-0 right-0 top-[15px] z-40 hidden items-center justify-between px-14 sm:flex">
+    <div className="pointer-events-none absolute left-0 right-0 top-[22px] z-40 hidden items-center justify-between px-14 sm:flex">
       <span className="text-[13px] font-semibold tabular-nums tracking-tight text-white">
-        9:41
+        11:00 AM
       </span>
       <div className="flex items-center gap-1.5">
         <svg width="16" height="10" viewBox="0 0 16 10" fill="none">

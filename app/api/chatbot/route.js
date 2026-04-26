@@ -1,73 +1,64 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-const SYSTEM_PROMPT = `You are the AI coach inside StreakCard, a gamified productivity app where users complete daily and weekly quests to earn XP and rank up (Bronze, Silver, Gold, Platinum, Diamond, Champion, Grandmaster, Legendary).
-
-Your job is to help users:
-1. Set realistic, specific, measurable goals
-2. Break big goals into daily/weekly quests
-3. Stay accountable when they're slacking
-4. Celebrate wins when they're crushing it
-
-Tone: hype, direct, motivating, slightly gamer-coded. Talk like a coach who actually cares. Keep responses short (2-4 sentences usually). Use occasional emojis but don't overdo it.
-
-When a user asks for quest suggestions, respond with a JSON code block containing a "suggestions" array of quest objects. Each quest has: title (string, max 40 chars), cadence ("daily" or "weekly"), xp (number, 50-150 for daily, 150-300 for weekly), missionType ("focus", "fitness", or "wellness").
-
-Otherwise respond conversationally as plain text.`;
-
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const { messages, userContext } = await request.json();
+    const { message, displayName } = await req.json();
 
-    if (!messages || !Array.isArray(messages)) {
+    if (!message || typeof message !== "string") {
+      return Response.json({ error: "Missing message" }, { status: 400 });
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
       return Response.json(
-        { error: "Messages array required" },
-        { status: 400 },
+        {
+          reply: "Coach can't connect right now (no API key set). Check ANTHROPIC_API_KEY in .env.local.",
+        },
+        { status: 200 },
       );
     }
 
-    const contextString = userContext
-      ? `\n\nUser context: ${JSON.stringify(userContext)}`
-      : "";
+    const client = new Anthropic({ apiKey });
+
+    const systemPrompt = `You are an Ascend coach - a friendly, direct accountability AI built into a gamified habit-tracking app called Ascend. The user's name is ${displayName || "Player"}.
+
+Your job is to help them set good quests (habits/tasks). Quests are either daily or weekly. Mission types are: focus (study/coding/reading), fitness (gym/running), wellness (sleep/diet/mindfulness).
+
+When the user asks for quest suggestions, ALWAYS respond with:
+1. A short conversational message (1-2 sentences max, encouraging tone)
+2. A JSON code block with 2-4 quest suggestions in this exact format:
+
+\`\`\`json
+[
+  {"title": "Leetcode 1 hour", "cadence": "daily", "missionType": "focus"},
+  {"title": "Gym 3x this week", "cadence": "weekly", "missionType": "fitness"}
+]
+\`\`\`
+
+Keep titles under 40 chars. Be specific and actionable. If the user is just chatting (not asking for quests), respond conversationally without JSON.
+
+NEVER use em dashes. Be concise. Be direct. Match the user's vibe.`;
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 600,
-      system: SYSTEM_PROMPT + contextString,
-      messages: messages,
+      system: systemPrompt,
+      messages: [{ role: "user", content: message }],
     });
 
-    const text = response.content[0].text;
+    const reply =
+      response.content?.[0]?.type === "text"
+        ? response.content[0].text
+        : "I couldn't generate a response.";
 
-    // Try to extract quest suggestions if Claude included a JSON block
-    let suggestions = null;
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[1]);
-        if (parsed.suggestions) {
-          suggestions = parsed.suggestions;
-        }
-      } catch {
-        // Ignore parse failures, just return text
-      }
-    }
-
-    // Strip the JSON block from the displayed message
-    const displayText = text.replace(/```json\s*[\s\S]*?\s*```/, "").trim();
-
-    return Response.json({
-      message: displayText,
-      suggestions,
-    });
-  } catch (error) {
-    console.error("Chatbot error:", error);
+    return Response.json({ reply });
+  } catch (err) {
+    console.error("Chatbot API error:", err);
     return Response.json(
-      { error: "Coach is offline, try again" },
-      { status: 500 },
+      {
+        reply: `Coach hit an error. ${err?.message || "Unknown issue"}. Check that ANTHROPIC_API_KEY is set.`,
+      },
+      { status: 200 },
     );
   }
 }

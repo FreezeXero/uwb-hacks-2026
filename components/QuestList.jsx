@@ -1,11 +1,63 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  Code,
+  BookOpen,
+  Book,
+  Dumbbell,
+  Moon,
+  Brain,
+  Apple,
+  Droplet,
+  Footprints,
+  Sparkles,
+  Target,
+} from "lucide-react";
 import { useAppState } from "./AppStateProvider";
 import VerificationModal from "./VerificationModal";
 
+const iconMap = {
+  code: Code,
+  book: Book,
+  "book-open": BookOpen,
+  dumbbell: Dumbbell,
+  moon: Moon,
+  brain: Brain,
+  apple: Apple,
+  droplet: Droplet,
+  footprints: Footprints,
+};
+
+function QuestIcon({ icon, missionType, size = 16 }) {
+  const Icon = iconMap[icon] || (
+    missionType === "fitness"
+      ? Dumbbell
+      : missionType === "wellness"
+      ? Apple
+      : Target
+  );
+  const tint =
+    missionType === "fitness"
+      ? "#ff8a3d"
+      : missionType === "wellness"
+      ? "#10b981"
+      : "#4f8cff";
+  return (
+    <div
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+      style={{
+        background: `${tint}1f`,
+        border: `1px solid ${tint}33`,
+      }}
+    >
+      <Icon size={size} style={{ color: tint }} strokeWidth={2.2} />
+    </div>
+  );
+}
+
 export default function QuestList() {
-  const { addXp, quests, addQuest, completeQuest } = useAppState();
+  const { addXp, quests, addQuest, completeQuest, multiplier } = useAppState();
   const [newQuest, setNewQuest] = useState("");
   const [selectedMissionType, setSelectedMissionType] = useState("focus");
   const [selectedCadence, setSelectedCadence] = useState("daily");
@@ -49,21 +101,17 @@ export default function QuestList() {
     <>
       <section className="space-y-3">
         <div className="future-panel p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                Active Streak
-              </p>
-              <p className="mt-1 text-3xl font-bold tracking-tight text-white">
-                8 <span className="text-base font-medium text-muted">days</span>
-              </p>
+          {multiplier > 1 && (
+            <div className="mb-3 flex items-center justify-between rounded-lg bg-[var(--warm-soft)] px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} className="text-[var(--warm)]" strokeWidth={2.4} />
+                <p className="text-[12px] font-semibold text-white">
+                  {multiplier}× XP active
+                </p>
+              </div>
+              <p className="text-[11px] text-muted">From your streak</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10 text-xl">
-              🔥
-            </div>
-          </div>
-
-          <div className="divider-soft my-4" />
+          )}
 
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             Mission Type
@@ -76,7 +124,7 @@ export default function QuestList() {
                 onClick={() => setSelectedMissionType(m.id)}
                 className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
                   selectedMissionType === m.id
-                    ? "border border-orange-500/40 bg-orange-500/15 text-orange-300"
+                    ? "border border-[var(--accent)]/40 bg-[var(--accent-soft)] text-[var(--accent)]"
                     : "border border-white/10 bg-white/[0.03] text-zinc-400 hover:bg-white/[0.06]"
                 }`}
               >
@@ -116,9 +164,13 @@ export default function QuestList() {
               onChange={(e) => setNewQuest(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAddQuest()}
               placeholder="Add a new quest..."
-              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white placeholder:text-muted focus:border-orange-500/40 focus:outline-none focus:ring-1 focus:ring-orange-500/30"
+              className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white placeholder:text-muted focus:border-[var(--accent)]/40 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/30"
             />
-            <button type="button" onClick={handleAddQuest} className="future-button px-4 text-xs">
+            <button
+              type="button"
+              onClick={handleAddQuest}
+              className="future-button px-4 text-xs"
+            >
               Add
             </button>
           </div>
@@ -128,33 +180,36 @@ export default function QuestList() {
           {visibleQuests.map((quest) => (
             <article
               key={quest.id}
-              className={`future-panel p-3.5 transition ${quest.done ? "opacity-60" : ""}`}
+              className={`future-panel p-3 transition ${quest.done ? "opacity-60" : ""}`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <QuestIcon icon={quest.icon} missionType={quest.missionType} />
+
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-white">{quest.title}</p>
-                    <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+                  <p className="truncate text-[14px] font-semibold text-white">
+                    {quest.title}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
                       {quest.cadence}
                     </span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2 text-xs text-muted">
-                    <span>{quest.progress}</span>
-                    <span className="text-white/20">•</span>
-                    <span className="font-semibold text-orange-400">+{quest.xp} XP</span>
+                    <span className="text-[11px] font-semibold text-[var(--accent)]">
+                      +{Math.round(quest.xp * multiplier)} XP
+                    </span>
                   </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => openVerification(quest)}
                   disabled={quest.done}
                   className={
                     quest.done
-                      ? "future-button-ghost px-3 py-1.5 text-xs"
-                      : "future-button px-3 py-1.5 text-xs"
+                      ? "future-button-ghost px-3 py-2 text-[12px]"
+                      : "future-button px-3 py-2 text-[12px]"
                   }
                 >
-                  {quest.done ? "✓ Done" : "Log"}
+                  {quest.done ? "Done" : "Log"}
                 </button>
               </div>
             </article>
